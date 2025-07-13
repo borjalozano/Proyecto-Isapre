@@ -182,23 +182,30 @@ with tab3:
         if "tabla_isapre" in st.session_state and st.session_state["tabla_isapre"]:
             tabla_isapre_json = json.dumps(st.session_state["tabla_isapre"], ensure_ascii=False, indent=2)
 
-        prompt = f'''
-Eres un asistente experto en salud previsional chilena. A partir del siguiente resumen de atención y los textos relevantes de un plan ISAPRE y un seguro complementario, entrega una estimación de reembolso y copago desglosada, considerando:
+        prompt = f"""
+Eres un asistente experto en salud previsional chilena.
 
-- Cobertura ISAPRE
-- Cobertura seguro complementario
-- Copago estimado del paciente
-- Sugerencia de prestador si aplica
+Tu tarea es ayudar a un paciente a entender cuánto le cubrirán su ISAPRE y su seguro complementario para una atención médica que describe, considerando sus planes.
 
-Motivo de atención:
+Los textos de los planes están en formato plano (texto), pero pueden contener información tabular implícita. Interprétalos como si fueran tablas visuales: por ejemplo, si encuentras "Consultas médicas" o "Cirugía ambulatoria" y más adelante en la misma línea un porcentaje como "80%", asume que eso es la cobertura. Si más adelante aparecen clínicas (como "Clínica Alemana", "Clínica Dávila", etc.), entiéndelo como prestadores preferentes o con convenio.
+
+Haz lo mismo con los seguros complementarios: si encuentras secciones como "Sobre Reembolso Instituciones de Salud", interpreta que ese porcentaje se aplica al copago que no cubre la ISAPRE.
+
+El usuario ha indicado:
+
+📌 Motivo de atención:
 {st.session_state["consulta_descripcion"]}
 
-Fragmentos relevantes del Plan ISAPRE:
+📄 Fragmentos relevantes del Plan ISAPRE:
 {"\n\n".join(top_isapre_chunks)}
 
-Fragmentos relevantes del Seguro complementario:
+📄 Fragmentos relevantes del Seguro complementario:
 {"\n\n".join(top_seguro_chunks)}
-'''
+
+Si también hay una tabla estructurada ISAPRE, úsala como fuente prioritaria de verdad para cálculos.
+
+Haz un análisis con desglose y explica qué cubre cada entidad y qué copago queda para el paciente.
+"""
 
         if tabla_isapre_json:
             prompt += f"\n\nAdemás, aquí tienes una tabla estructurada extraída del plan ISAPRE que puedes usar como referencia confiable para las coberturas:\n{tabla_isapre_json}\n"
