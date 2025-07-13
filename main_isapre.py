@@ -6,6 +6,7 @@ import openai
 import os
 from io import BytesIO
 import numpy as np
+import json
 
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -45,6 +46,46 @@ def get_embedding(text):
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
+def extract_tabla_isapre_from_blocks(blocks):
+    # Buscamos la sección "AMBULATORIAS" y luego filas con "Consultas médicas"
+    tabla = []
+    seccion_ambul = False
+    for b in blocks:
+        text = b[4].strip()
+        if "AMBULATORIAS" in text.upper():
+            seccion_ambul = True
+            continue
+        if seccion_ambul:
+            # Si encontramos un título de sección nuevo, dejamos de buscar
+            if text.isupper() and text != "CONSULTAS MÉDICAS":
+                break
+            # Buscamos filas que contengan "Consultas médicas"
+            if "Consultas médicas" in text:
+                # Intentamos capturar celdas adyacentes en la misma línea (usando posición)
+                # Buscamos bloques en la misma línea (aprox misma y0)
+                y0 = b[1]
+                y1 = b[3]
+                line_blocks = [blk for blk in blocks if abs(blk[1]-y0)<5 and abs(blk[3]-y1)<5]
+                # Ordenar por x0 para simular columnas
+                line_blocks = sorted(line_blocks, key=lambda x: x[0])
+                # Extraemos textos de celdas
+                textos = [blk[4].strip() for blk in line_blocks]
+                # Intentamos mapear a campos: prestacion, cobertura, prestadores
+                # Suponemos que el primer texto es prestacion, luego cobertura, luego prestadores (si hay)
+                prestacion = textos[0] if len(textos) > 0 else ""
+                cobertura = textos[1] if len(textos) > 1 else ""
+                prestadores = textos[2] if len(textos) > 2 else ""
+                tabla.append({
+                    "prestacion": prestacion,
+                    "cobertura": cobertura,
+                    "prestadores": prestadores
+                })
+            else:
+                # También capturar filas que parezcan parte de la tabla (por posición y alineación)
+                # Podríamos intentar capturar filas que estén en la misma área y tengan varias celdas
+                pass
+    return tabla
+
 # Tab 1: Subir planes
 with tab1:
     st.header("📥 Subir tus planes")
@@ -65,10 +106,20 @@ with tab1:
         if plan_isapre.name.endswith(".pdf"):
             with fitz.open(stream=plan_isapre.read(), filetype="pdf") as doc:
                 texto_isapre = ""
+                blocks_all = []
                 for page in doc:
                     texto_isapre += page.get_text()
+                    blocks = page.get_text("blocks")
+                    blocks_all.extend(blocks)
             st.session_state["texto_isapre"] = texto_isapre
             st.text_area("🧾 Texto extraído del Plan ISAPRE", texto_isapre, height=200)
+
+            # Extraer tabla simulada desde bloques
+            tabla_isapre = extract_tabla_isapre_from_blocks(blocks_all)
+            st.session_state["tabla_isapre"] = tabla_isapre
+            if tabla_isapre:
+                st.markdown("### Tabla simulada extraída del Plan ISAPRE (sección AMBULATORIAS - Consultas médicas)")
+                st.json(tabla_isapre)
 
             # Crear chunks y embeddings para ISAPRE
             chunks_isapre = chunk_text(texto_isapre, max_len=500)
@@ -127,6 +178,10 @@ with tab3:
         top_isapre_chunks = get_top_chunks(st.session_state["chunks_isapre"], consulta_embedding, top_k=3)
         top_seguro_chunks = get_top_chunks(st.session_state["chunks_seguro"], consulta_embedding, top_k=3)
 
+        tabla_isapre_json = ""
+        if "tabla_isapre" in st.session_state and st.session_state["tabla_isapre"]:
+            tabla_isapre_json = json.dumps(st.session_state["tabla_isapre"], ensure_ascii=False, indent=2)
+
         prompt = f'''
 Eres un asistente experto en salud previsional chilena. A partir del siguiente resumen de atención y los textos relevantes de un plan ISAPRE y un seguro complementario, entrega una estimación de reembolso y copago desglosada, considerando:
 
@@ -144,6 +199,9 @@ Fragmentos relevantes del Plan ISAPRE:
 Fragmentos relevantes del Seguro complementario:
 {"\n\n".join(top_seguro_chunks)}
 '''
+
+        if tabla_isapre_json:
+            prompt += f"\n\nAdemás, aquí tienes una tabla estructurada extraída del plan ISAPRE que puedes usar como referencia confiable para las coberturas:\n{tabla_isapre_json}\n"
 
         with st.spinner("Analizando cobertura y calculando estimación..."):
             response = client.chat.completions.create(
