@@ -65,12 +65,42 @@ with tab2:
 # Tab 3: Simulación
 with tab3:
     st.header("💰 Estimación de Reembolso")
-    if "consulta_descripcion" in st.session_state:
+    if (
+        "consulta_descripcion" in st.session_state and
+        "texto_isapre" in st.session_state and
+        "texto_seguro" in st.session_state
+    ):
         st.markdown(f"📌 *Motivo:* {st.session_state['consulta_descripcion']}")
-        st.markdown("🔍 En esta sección verás cuánto cubre tu ISAPRE y tu seguro complementario.")
-        st.info("⚠️ Esta es una versión demo. El cálculo real se activará cuando se procesen los planes subidos.")
+
+        prompt = f'''
+Eres un asistente experto en salud previsional chilena. A partir del siguiente resumen de atención y los textos de un plan ISAPRE y un seguro complementario, entrega una estimación de reembolso y copago desglosada, considerando:
+
+- Cobertura ISAPRE
+- Cobertura seguro complementario
+- Copago estimado del paciente
+- Sugerencia de prestador si aplica
+
+Motivo de atención:
+{st.session_state["consulta_descripcion"]}
+
+Plan ISAPRE:
+{st.session_state["texto_isapre"]}
+
+Seguro complementario:
+{st.session_state["texto_seguro"]}
+'''
+
+        with st.spinner("Analizando cobertura y calculando estimación..."):
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            resultado = response.choices[0].message.content.strip()
+            st.markdown("### 💸 Resultado de la estimación")
+            st.markdown(resultado)
     else:
-        st.warning("Por favor completa la descripción de tu atención en la pestaña anterior.")
+        st.warning("Por favor completa la descripción y asegúrate de haber subido ambos planes.")
 
 # Tab 4: Prestadores sugeridos
 with tab4:
