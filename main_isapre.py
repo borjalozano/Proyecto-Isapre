@@ -33,6 +33,26 @@ with tab1:
     if plan_isapre and plan_seguro:
         st.info("Ambos documentos subidos. Puedes continuar a la siguiente pestaña.")
 
+        # Extraer texto del plan ISAPRE
+        if plan_isapre.name.endswith(".pdf"):
+            with fitz.open(stream=plan_isapre.read(), filetype="pdf") as doc:
+                texto_isapre = ""
+                for page in doc:
+                    texto_isapre += page.get_text()
+            st.session_state["texto_isapre"] = texto_isapre
+            st.text_area("🧾 Texto extraído del Plan ISAPRE", texto_isapre, height=200)
+
+        # Extraer texto del seguro complementario
+        if plan_seguro.name.endswith(".pdf"):
+            with fitz.open(stream=plan_seguro.read(), filetype="pdf") as doc:
+                texto_seguro = ""
+                for page in doc:
+                    texto_seguro += page.get_text()
+            st.session_state["texto_seguro"] = texto_seguro
+            st.text_area("🧾 Texto extraído del Seguro Complementario", texto_seguro, height=200)
+
+        # (nada)
+
 # Tab 2: Consulta médica
 with tab2:
     st.header("💬 ¿Qué atención médica necesitas?")
