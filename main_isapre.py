@@ -6,6 +6,8 @@ import openai
 import os
 from io import BytesIO
 
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
 st.set_page_config(page_title="Simulador ISAPRE y Seguro Complementario", page_icon="💊")
 st.title("💊 Simulador de Reembolsos de Salud - ISAPRE + Seguro Complementario")
 
@@ -91,7 +93,7 @@ Seguro complementario:
 '''
 
         with st.spinner("Analizando cobertura y calculando estimación..."):
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3
